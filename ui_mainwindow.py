@@ -1,18 +1,18 @@
 import datetime
-import traceback
 import random
 from datetime import timedelta
-import requests
-import pyqtgraph as pg
 
 import finplot as fplt
 import pandas as pd
-
-from PyQt6.QtCore import QSize, Qt, QPointF, QRectF
-from PyQt6.QtWidgets import QMainWindow, QSizePolicy, QStatusBar, QMessageBox, QWidget, QLabel, QToolBar, QSplitter, QVBoxLayout, QTabWidget, QPushButton
+import pyqtgraph as pg
+import requests
+from PyQt6.QtCore import QSize, Qt, QRectF
 from PyQt6.QtGui import QAction, QShortcut, QKeySequence
+from PyQt6.QtWidgets import QMainWindow, QSizePolicy, QStatusBar, QMessageBox, QWidget, QLabel, QToolBar, QSplitter, \
+    QVBoxLayout, QTabWidget, QPushButton
 
-import utils, trading
+import trading
+import utils
 from playback import PlayBackState
 
 

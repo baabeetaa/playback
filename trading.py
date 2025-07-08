@@ -1,8 +1,8 @@
-import utils
-
 from enum import Enum
+
 import pandas as pd
 
+import utils
 
 ORDER_SIZE_PERCENT = float(10)
 MIN_SECONDS_BETWEEN_TRADE = 12 * 3600  # 12 hours
