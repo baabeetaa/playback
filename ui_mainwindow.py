@@ -7,7 +7,7 @@ import pandas as pd
 import pyqtgraph as pg
 import requests
 from PyQt6.QtCore import QSize, Qt, QRectF
-from PyQt6.QtGui import QAction, QShortcut, QKeySequence
+from PyQt6.QtGui import QAction, QShortcut, QKeySequence, QActionGroup
 from PyQt6.QtWidgets import QMainWindow, QSizePolicy, QStatusBar, QMessageBox, QWidget, QLabel, QToolBar, QSplitter, \
     QVBoxLayout, QTabWidget, QPushButton
 
@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         self.create_toolbar()
         self.create_statusbar()
 
-        fplt.FinViewBox.mouseRightDrag = self.on_chart_right_drag
+        fplt.FinViewBox.mouseDragEvent = self.mouseDragEvent
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(self.splitter)
@@ -88,13 +88,46 @@ class MainWindow(QMainWindow):
         toolbar.setIconSize(QSize(16, 16))
         self.addToolBar(toolbar)
 
-        ####################################################################################
-        # drawing tools
-        # Cursor
+        # Next (play next bar)
         playNext = QAction("Next", self)
         playNext.setStatusTip("Next")
         playNext.triggered.connect(self.on_play_next)
         toolbar.addAction(playNext)
+
+        # Add a separator
+        toolbar.addSeparator()
+
+        ####################################################################################
+        # drawing tools
+        # Cursor
+        btnCursor = QAction("Cursor", self)
+        btnCursor.setStatusTip("Cursor")
+        btnCursor.setCheckable(True)
+        btnCursor.triggered.connect(lambda: self.on_drawing_tool_click("Cursor"))
+        toolbar.addAction(btnCursor)
+
+        # DrawBox
+        btnDrawBox = QAction("DrawBox", self)
+        btnDrawBox.setStatusTip("DrawBox")
+        btnDrawBox.setCheckable(True)
+        btnDrawBox.triggered.connect(lambda: self.on_drawing_tool_click("DrawBox"))
+
+        # drawing tools action group
+        draw_action_group = QActionGroup(self)
+        draw_action_group.setExclusive(True)  # Ensure only one action can be checked at a time
+        draw_action_group.addAction(btnCursor)
+        draw_action_group.addAction(btnDrawBox)
+
+        # Set an initial checked state
+        btnCursor.setChecked(True)
+        toolbar.addAction(btnDrawBox)
+
+    def on_drawing_tool_click(self, tool_type):
+        if tool_type == self.selectedMouseTool:
+            return
+
+        self.selectedMouseTool = tool_type
+        print(f"selectedMouseTool: {self.selectedMouseTool}")
 
     def create_statusbar(self):
         self.statusBar = QStatusBar(self)
@@ -190,16 +223,32 @@ class MainWindow(QMainWindow):
 
         # set rows height
         fplt.axis_height_factor[0] = 5
-        fplt.axis_height_factor[1] = 1
-        # fplt.axis_height_factor[2] = 1
-        # fplt.axis_height_factor[3] = 1
-        # fplt.axis_height_factor[4] = 1
-        # fplt.axis_height_factor[5] = 1
+        # fplt.axis_height_factor[1] = 1
 
         fplt.show(qt_exec=False)  # prepares plots when they're all setup
         # fplt.refresh()  # refresh autoscaling when all plots complete
 
-    def on_chart_right_drag(self, ev, axis):
+    def mouseDragEvent(self, ev, axis=None):
+        vb = self.axs[0].vb
+        axis = 0  # don't constrain drag direction
+
+        if self.selectedMouseTool == "Cursor":
+            if vb.master_viewbox:
+                return vb.master_viewbox.mouseDragEvent(ev, axis=axis)
+            if not vb.datasrc:
+                return
+            if ev.button() == Qt.MouseButton.LeftButton:
+                vb.mouseLeftDrag(ev, axis)
+            elif ev.button() == Qt.MouseButton.MiddleButton:
+                vb.mouseMiddleDrag(ev, axis)
+            elif ev.button() == Qt.MouseButton.RightButton:
+                vb.mouseRightDrag(ev, axis)
+            else:
+                vb.super().mouseDragEvent(ev, axis)
+        else:
+            self.mouseLeftDrag(ev, axis)
+
+    def mouseLeftDrag(self, ev, axis):
         vb = self.axs[0].vb
 
         p1 = vb.mapToView(ev.pos())
