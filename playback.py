@@ -1,5 +1,4 @@
-from datetime import datetime
-
+import finplot as fplt
 
 class PlayBackState:
     def __init__(self):
@@ -7,14 +6,14 @@ class PlayBackState:
 
 
 class AVWAP:
-    def __init__(self, anchor_datetime=None, df=None):
+    def __init__(self, anchor_datetime=None):
         self.anchor_datetime = anchor_datetime
-        self.df = df
         self.df_anchored = None
+        self.plot_avwap = None
 
-    def calculate(self):
+    def calculate(self, df):
         # Filter data from the anchor point
-        self.df_anchored = self.df[self.df.time >= self.anchor_datetime].copy()
+        self.df_anchored = df[df.time >= self.anchor_datetime].copy()
         self.df_anchored = self.df_anchored.astype({'time': 'datetime64[ms]'})
         self.df_anchored['time'] = self.df_anchored['time'].dt.tz_localize(None)
 
@@ -30,3 +29,8 @@ class AVWAP:
 
         # need this for fplt.plot to work
         self.df_anchored.reset_index(drop=True, inplace=True)
+
+    def plot(self, ax):
+        if self.plot_avwap is not None:
+            ax.removeItem(self.plot_avwap)
+        self.plot_avwap = fplt.plot(self.df_anchored['time'], self.df_anchored['avwap'], ax=ax, color='#0000ff', width=1)

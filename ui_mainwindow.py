@@ -1,6 +1,7 @@
 import datetime
 import random
 from datetime import timedelta
+from warnings import simplefilter
 
 import finplot as fplt
 import pandas as pd
@@ -35,6 +36,12 @@ class MainWindow(QMainWindow):
         self.total_trades_count = 0
 
         self.lst_avwap = []
+
+        # ignore the warning:
+        # PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.
+        # Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+        #   output_df[col] = df[col]
+        simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
     def init_ui(self):
         self.resize(QSize(3200, 1600))
@@ -377,8 +384,19 @@ class MainWindow(QMainWindow):
         self.df = self.df.astype({'time': 'datetime64[ms]'})
         self.df['time'] = self.df['time'].dt.tz_localize(None)
 
+        # update chart
         self.candles.update_data(self.df, gfx=False)
         self.candles.update_gfx()
+
+        # update avwap
+        # have to plot again instead of updating data to avoid the zoom issue when playing next bar
+        for avwap in self.lst_avwap:
+            avwap.calculate(df=self.df)
+            # avwap.plot_avwap.update_data(avwap.df_anchored, gfx=False)
+            avwap.plot(ax=self.axs[0])
+        # for avwap in self.lst_avwap:
+        #     avwap.plot_avwap.update_gfx()
+
         self.playback_state.index = index + 1
 
         self.update_trade_info()
@@ -475,8 +493,7 @@ class MainWindow(QMainWindow):
             anchor_datetime = datetime.datetime.fromtimestamp(x / 1e9, tz=datetime.timezone.utc).replace(tzinfo=None)
             # t2 = self.df.iloc[-1]["time"]
 
-            new_avwap = AVWAP(anchor_datetime= anchor_datetime, df=self.df)
-            new_avwap.calculate()
+            new_avwap = AVWAP(anchor_datetime= anchor_datetime)
+            new_avwap.calculate(df=self.df)
+            new_avwap.plot(ax = self.axs[0])
             self.lst_avwap.append(new_avwap)
-            fplt.plot(new_avwap.df_anchored['time'], new_avwap.df_anchored['avwap'], ax=self.axs[0], color='#0000ff', width=1)
-
