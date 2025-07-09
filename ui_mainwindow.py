@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import QMainWindow, QSizePolicy, QStatusBar, QMessageBox, Q
 
 import trading
 import utils
-from playback import PlayBackState
+from playback import PlayBackState, AVWAP
 
 
 class MainWindow(QMainWindow):
@@ -31,12 +31,10 @@ class MainWindow(QMainWindow):
         self.trade_state = trading.TradingState()
         self.trade_state.balance = float(1000.0)  # set initial balance
         self.trade_state.unreliable_balance = self.trade_state.balance
-
         self.ref_entry_line = None
-
         self.total_trades_count = 0
 
-        self.draw_rect = None
+        self.lst_avwap = []
 
     def init_ui(self):
         self.resize(QSize(3200, 1600))
@@ -44,9 +42,6 @@ class MainWindow(QMainWindow):
         self.create_menubar()
         self.create_toolbar()
         self.create_statusbar()
-
-        fplt.FinViewBox.mouseDragEvent = self.mouseDragEvent
-
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(self.splitter)
         self.create_left_panels()
@@ -104,6 +99,7 @@ class MainWindow(QMainWindow):
         btnCursor.setStatusTip("Cursor")
         btnCursor.setCheckable(True)
         btnCursor.triggered.connect(lambda: self.on_drawing_tool_click("Cursor"))
+        btnCursor.setChecked(True)  # Set an initial checked state
         toolbar.addAction(btnCursor)
 
         # DrawBox
@@ -111,16 +107,21 @@ class MainWindow(QMainWindow):
         btnDrawBox.setStatusTip("DrawBox")
         btnDrawBox.setCheckable(True)
         btnDrawBox.triggered.connect(lambda: self.on_drawing_tool_click("DrawBox"))
+        toolbar.addAction(btnDrawBox)
+
+        # avwap
+        btn_avwap = QAction("AVWAP", self)
+        btn_avwap.setStatusTip("Anchored Volume Weighted Average Price")
+        btn_avwap.setCheckable(True)
+        btn_avwap.triggered.connect(lambda: self.on_drawing_tool_click("AVWAP"))
+        toolbar.addAction(btn_avwap)
 
         # drawing tools action group
         draw_action_group = QActionGroup(self)
         draw_action_group.setExclusive(True)  # Ensure only one action can be checked at a time
         draw_action_group.addAction(btnCursor)
         draw_action_group.addAction(btnDrawBox)
-
-        # Set an initial checked state
-        btnCursor.setChecked(True)
-        toolbar.addAction(btnDrawBox)
+        draw_action_group.addAction(btn_avwap)
 
     def on_drawing_tool_click(self, tool_type):
         if tool_type == self.selectedMouseTool:
@@ -225,6 +226,9 @@ class MainWindow(QMainWindow):
         fplt.axis_height_factor[0] = 5
         # fplt.axis_height_factor[1] = 1
 
+        fplt.FinViewBox.mouseDragEvent = self.mouseDragEvent
+        fplt.set_mouse_callback(self.on_chart_mouse_click, ax=self.axs[0], when='click')
+
         fplt.show(qt_exec=False)  # prepares plots when they're all setup
         # fplt.refresh()  # refresh autoscaling when all plots complete
 
@@ -307,6 +311,9 @@ class MainWindow(QMainWindow):
             df['time'] = df['timestamp'] * 1000
             self.df_full = df[['time', 'open', 'close', 'high', 'low', 'volume']]
 
+            self.df_full = self.df_full.astype({'time': 'datetime64[ms]', 'open': float, 'high': float, 'low': float, 'close': float, 'volume': float})
+            self.df_full['time'] = self.df_full['time'].dt.tz_localize(None)
+
             self.load_data()
 
         except Exception as e:
@@ -325,11 +332,12 @@ class MainWindow(QMainWindow):
     def load_data(self):
         self.reset_data()
 
-        self.df_full = self.df_full.astype({'time': 'datetime64[ms]', 'open': float, 'high': float, 'low': float, 'close': float, 'volume': float})
-        self.df_full['time'] = self.df_full['time'].dt.tz_localize(None)
-
         # make date shift randomly
         self.df_full['time'] = self.df_full['time'] - pd.Timedelta(days=random.randint(1, 365*10))
+
+        # fix type datetime64[ms] again
+        self.df_full = self.df_full.astype({'time': 'datetime64[ms]'})
+        self.df_full['time'] = self.df_full['time'].dt.tz_localize(None)
 
         # make price scale randomly
         # also fix the bug of finplot which cannot display with small values (less than 1)
@@ -364,6 +372,11 @@ class MainWindow(QMainWindow):
 
         new_row = self.df_full.iloc[index]
         self.df = pd.concat([self.df, pd.DataFrame([new_row])], ignore_index=True)
+
+        # fix type datetime64[ms] again
+        self.df = self.df.astype({'time': 'datetime64[ms]'})
+        self.df['time'] = self.df['time'].dt.tz_localize(None)
+
         self.candles.update_data(self.df, gfx=False)
         self.candles.update_gfx()
         self.playback_state.index = index + 1
@@ -452,3 +465,18 @@ class MainWindow(QMainWindow):
             self.trade_state.position_size += order_size
             self.update_trade_info()
             self.update_entry_line()
+
+    def on_chart_mouse_click(self, x, y):
+        # print('on_chart_mouse_click: x=', x, 'y=', y)
+        if self.selectedMouseTool == "Cursor":
+            return
+
+        if self.selectedMouseTool == "AVWAP":
+            anchor_datetime = datetime.datetime.fromtimestamp(x / 1e9, tz=datetime.timezone.utc).replace(tzinfo=None)
+            # t2 = self.df.iloc[-1]["time"]
+
+            new_avwap = AVWAP(anchor_datetime= anchor_datetime, df=self.df)
+            new_avwap.calculate()
+            self.lst_avwap.append(new_avwap)
+            fplt.plot(new_avwap.df_anchored['time'], new_avwap.df_anchored['avwap'], ax=self.axs[0], color='#0000ff', width=1)
+
