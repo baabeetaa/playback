@@ -8,9 +8,9 @@ import pandas as pd
 import pyqtgraph as pg
 import requests
 from PyQt6.QtCore import QSize, Qt, QRectF
-from PyQt6.QtGui import QAction, QShortcut, QKeySequence, QActionGroup
+from PyQt6.QtGui import QAction, QShortcut, QKeySequence, QActionGroup, QIcon
 from PyQt6.QtWidgets import QMainWindow, QSizePolicy, QStatusBar, QMessageBox, QWidget, QLabel, QToolBar, QSplitter, \
-    QVBoxLayout, QTabWidget, QPushButton
+    QVBoxLayout, QTabWidget, QPushButton, QToolButton
 
 import trading
 import utils
@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
     def create_toolbar(self):
         toolbar = QToolBar("Main Toolbar")
         toolbar.setIconSize(QSize(16, 16))
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.addToolBar(toolbar)
 
         # Next (play next bar)
@@ -102,7 +103,7 @@ class MainWindow(QMainWindow):
         ####################################################################################
         # drawing tools
         # Cursor
-        btnCursor = QAction("Cursor", self)
+        btnCursor = QAction(QIcon("icons8-cursor-16.png"), "Cursor", self)
         btnCursor.setStatusTip("Cursor")
         btnCursor.setCheckable(True)
         btnCursor.triggered.connect(lambda: self.on_drawing_tool_click("Cursor"))
@@ -110,14 +111,14 @@ class MainWindow(QMainWindow):
         toolbar.addAction(btnCursor)
 
         # DrawBox
-        btnDrawBox = QAction("DrawBox", self)
+        btnDrawBox = QAction(QIcon("icons8-rectangle-16.png"), "DrawBox", self)
         btnDrawBox.setStatusTip("DrawBox")
         btnDrawBox.setCheckable(True)
         btnDrawBox.triggered.connect(lambda: self.on_drawing_tool_click("DrawBox"))
         toolbar.addAction(btnDrawBox)
 
         # avwap
-        btn_avwap = QAction("AVWAP", self)
+        btn_avwap = QAction(QIcon("icons8-line-chart-16.png"), "AVWAP", self)
         btn_avwap.setStatusTip("Anchored Volume Weighted Average Price")
         btn_avwap.setCheckable(True)
         btn_avwap.triggered.connect(lambda: self.on_drawing_tool_click("AVWAP"))
@@ -383,6 +384,7 @@ class MainWindow(QMainWindow):
         # fix type datetime64[ms] again
         self.df = self.df.astype({'time': 'datetime64[ms]'})
         self.df['time'] = self.df['time'].dt.tz_localize(None)
+        self.df.reset_index(drop=True, inplace=True)
 
         # update chart
         self.candles.update_data(self.df, gfx=False)
