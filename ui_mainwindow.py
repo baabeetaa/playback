@@ -2,6 +2,7 @@ import datetime
 import random
 from datetime import timedelta
 from warnings import simplefilter
+import pandas_ta as ta
 
 import finplot as fplt
 import pandas as pd
@@ -216,23 +217,24 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(tab_widget)
 
     def create_charts(self):
+        """
+        create 2 rows:
+            0: for candle,
+            1: for macd
+        """
+
         fplt.display_timezone = datetime.timezone.utc
         # fplt.lod_candles = 300000  # Level of Detail (LoD) to fix some candles not being displayed
         # fplt.background = '#444444'
         fplt.odd_plot_background = '#f3f6f4'
 
-        # plot price
-        """
-        create 1 rows: 
-            0: for candle, 
-        """
         self.axs = fplt.create_plot('USDT-BTC', rows=2, init_zoom_periods=10, yscale='linear')
         self.axo = self.axs[0].overlay()
         self.splitter.addWidget(self.axs[0].vb.win)
 
         # set rows height
         fplt.axis_height_factor[0] = 5
-        # fplt.axis_height_factor[1] = 1
+        fplt.axis_height_factor[1] = 1
 
         fplt.FinViewBox.mouseDragEvent = self.mouseDragEvent
         fplt.set_mouse_callback(self.on_chart_mouse_click, ax=self.axs[0], when='click')
@@ -359,11 +361,21 @@ class MainWindow(QMainWindow):
         self.df_full['low'] = self.df_full['low'] * random_float
         self.df_full['close'] = self.df_full['close'] * random_float
 
+
+        ##########################
+        # indicators
+
+        # macd
+        df_macd = ta.macd(close=self.df_full['close'], fast=12, slow=26, signal=9, append=False)
+        self.df_full['macd'] = df_macd['MACD_12_26_9']
+
+        ##########################
         self.df = self.df_full[:100].copy()  # get first 100 bars
         self.playback_state.index = 100
 
         # create candle
         self.candles = fplt.candlestick_ochl(self.df[['time', 'open', 'close', 'high', 'low', 'volume']], ax=self.axs[0])
+        self.macd = fplt.plot(self.df['time'], self.df['macd'], ax=self.axs[1], color='#78281f', width=1, legend='macd')
         fplt.refresh()
 
         self.on_play_next()  # play init
@@ -388,7 +400,9 @@ class MainWindow(QMainWindow):
 
         # update chart
         self.candles.update_data(self.df, gfx=False)
+        self.macd.update_data(self.df, gfx=False)
         self.candles.update_gfx()
+        self.macd.update_gfx()
 
         # update avwap
         # have to plot again instead of updating data to avoid the zoom issue when playing next bar
